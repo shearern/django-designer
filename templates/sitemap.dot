@@ -1,0 +1,9 @@
+digraph {
+% for page in data.pages:
+    ${sn(page.name)};
+
+    % if page.parent is not None:
+    ${sn(page.parent.name)} -> ${sn(page.name)};
+    % endif;
+% endfor;
+}
