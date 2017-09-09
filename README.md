@@ -1,6 +1,11 @@
 Django Design Tools
 ===================
 
+Usage
+-----
+
+    write_sitemap_dot.py site_data.yml output.dot
+
 
 Example Design File
 -------------------
