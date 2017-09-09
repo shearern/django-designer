@@ -9,6 +9,7 @@ if __name__ == '__main__':
         site_data_path, output_path = sys.argv[1:]
     except:
         print("USAGE ERROR: write_sitemap_dot.py site_data.yml output.dot")
+        sys.exit(1)
 
     data = Site.load(site_data_path)
 
