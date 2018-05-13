@@ -143,6 +143,15 @@ class DjangoDesignNewProjectWizard(PyMainWizard):
                     qid('allow_null'),
                     "Allow field %s to be null?" % (name),
                     default=True)
+                if field['allow_null']:
+                    field['blank'] = True
+
+                # Note: avoid using null=True on text fields
+                # ref: https://docs.djangoproject.com/en/2.0/ref/models/fields/#null
+                if field['allow_null']:
+                    if field['type'] in ('CharField', 'TextField'):
+                        field['blank'] = True
+                        field['allow_null'] = False
 
                 if field['type'] in ('CharField', ):
                     field['maxlen'] = self.ask_int(
