@@ -1,5 +1,6 @@
 '''Wizard to start new set of site files for generating a set of files'''
 import os
+import yaml
 
 from py_wizard.PyMainWizard import PyMainWizard
 from py_wizard.runner import run_wizard
@@ -51,18 +52,20 @@ class DjangoDesignNewProjectWizard(PyMainWizard):
 
     def execute(self):
 
+        site_data = dict()
+
         # List model classes
         models = self.ask_list('models', "List the model class names to start with")
 
-        # Get different names for each model
-        models_file = list()
-        models_file.append(("Class", "Singular Class", "Plural Class", "Single Name", "Plural Name"))
+        # Get details for each model
+        site_data['models'] = dict()
         for model in models:
-            print("==== %s ====" % (model))
+
+            print("==== MODEL: %s ====" % (model))
             qid = lambda n: "model.%s.%s" % (model, n)
             single_class = self.ask_simple(
                 qid('single_class'),
-                "Singlure class name for %s" % (model),
+                "Singular class name for %s" % (model),
                 default = model[0].upper() + model[1:])
             plural_class = self.ask_simple(
                 qid('plural_class'),
@@ -70,20 +73,101 @@ class DjangoDesignNewProjectWizard(PyMainWizard):
                 default = model[0].upper() + model[1:] + 's')
             single_name = self.ask_simple(
                 qid('single_name'),
-                "Singlure Name for %s" % (model),
+                "Singular Name for %s" % (model),
                 default = model.lower())
             plural_name = self.ask_simple(
                 qid('plural_name'),
                 "Plural Name for %s" % (model),
                 default = plural_class.lower())
-            models_file.append((single_class, plural_class, single_name, plural_name))
+            site_data['models'][single_class] = {
+                'plural': plural_class,
+                'single_name': single_name,
+                'plural_name': plural_name,
+            }
 
-        path = os.path.join(self.target, 'models.tsv')
+            # Field Names
+            i = 0
+            site_data['models'][single_class]['fields'] = list()
+            while True:
+                i += 1
+
+                field = dict()
+
+                name = field['name'] = self.ask_name("model.%s.fieldname.%d" % (model, i),
+                    "Name of field %d" % (i),
+                    optional = True)
+                if name is None:
+                    break
+
+                qid = lambda n: "model.%s.fields.%s.%s" % (model, name, n)
+
+                field_types = [n.strip() for n in """\
+                    CharField
+                    TextField
+                    BooleanField
+                    DateField
+                    DateTimeField
+                    FileField
+                    ImageField
+                    IntegerField
+                    BinaryField
+                    BigIntegerField
+                    FloatField
+                    DecimalField
+                    
+                    ForeignKey
+                    ManyToManyField
+
+                    AutoField
+                    BigAutoField
+                    DurationField
+                    EmailField
+                    FieldFile
+                    FilePathField
+                    GenericIPAddressField
+                    NullBooleanField
+                    PositiveIntegerField
+                    PositiveSmallIntegerField
+                    SmallIntegerField
+                    TimeField
+                    URLField
+                    UUIDField          
+                    """.split("\n") if len(n.strip()) > 0]
+
+                field['type'] = self.ask_select(
+                    qid('type'),
+                    "Model data type for field %s" % (name),
+                    options=field_types)
+
+                field['allow_null'] = self.ask_yes_no(
+                    qid('allow_null'),
+                    "Allow field %s to be null?" % (name),
+                    default=True)
+
+                if field['type'] in ('CharField', ):
+                    field['maxlen'] = self.ask_int(
+                        qid('maxlen'),
+                        "Maximum length of %s" % (name),
+                        optional=True)
+
+                if field['type'] in ('ForeignKey', 'ManyToManyField'):
+                    field['foreign_model'] = self.ask_name(
+                        qid('foreign_model'),
+                        "Name of foreign model for %s" % (name),
+                        optional=True)
+                    field['foreign_on_delete'] = self.ask_select(
+                        qid('foreign_on_delete'),
+                        "When %s is deleted, do to %s" % (field['foreign_model'], name),
+                        options = ('CASCADE', 'PROTECT', 'SET_NULL', 'SET_DEFAULT', 'DO_NOTHING'),
+                        optional=True)
+
+                site_data['models'][single_class]['fields'].append(field)
+
+
+        path = os.path.join(self.target, 'site.yml')
         print("Writing " + path)
-        with open(path, 'wt') as fh:
-            for line in models_file:
-                fh.write("\t".join(line) + "\n")
-
+        with open(path, 'wb') as fh:
+            yaml.dump(site_data, fh, default_flow_style=False)
 
 
 if __name__ == '__main__':
