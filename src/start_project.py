@@ -1,6 +1,10 @@
 '''Wizard to start new set of site files for generating a set of files'''
 import os
+import sys
 import yaml
+import gflags
+
+from bunch import Bunch
 
 from py_wizard.PyMainWizard import PyMainWizard
 from py_wizard.runner import run_wizard
@@ -52,49 +56,54 @@ class DjangoDesignNewProjectWizard(PyMainWizard):
 
     def execute(self):
 
-        site_data = dict()
+        # Loop over models
+        models = list()
+        while True:
 
-        # List model classes
-        models = self.ask_list('models', "List the model class names to start with")
+            print("="*60)
+            print("Next Model")
+            print("="*60)
+            print("")
 
-        # Get details for each model
-        site_data['models'] = dict()
-        for model in models:
+            # Model Name
+            single_class = model = self.ask_name("modelname.%d" % (len(models)),
+                "Class name (singular) of model #%d" % (len(models) + 1),
+                optional = True)
+            if model is None:
+                break
 
+            # Model naming details
             print("==== MODEL: %s ====" % (model))
             qid = lambda n: "model.%s.%s" % (model, n)
-            single_class = self.ask_simple(
-                qid('single_class'),
-                "Singular class name for %s" % (model),
-                default = model[0].upper() + model[1:])
+
             plural_class = self.ask_simple(
                 qid('plural_class'),
-                "Plural Class Name for %s" % (model),
+                "Plural name to use in any classes for %s" % (model),
                 default = model[0].upper() + model[1:] + 's')
             single_name = self.ask_simple(
                 qid('single_name'),
-                "Singular Name for %s" % (model),
+                "Singular lower case name for %s" % (model),
                 default = model.lower())
             plural_name = self.ask_simple(
                 qid('plural_name'),
-                "Plural Name for %s" % (model),
+                "Plural lower case name for %s" % (model),
                 default = plural_class.lower())
-            site_data['models'][single_class] = {
-                'plural': plural_class,
+
+            models.append(Bunch({
+                'single_class': single_class,
+                'plural_class': plural_class,
                 'single_name': single_name,
                 'plural_name': plural_name,
-            }
+                'fields': list(),
+            }))
 
             # Field Names
-            i = 0
-            site_data['models'][single_class]['fields'] = list()
             while True:
-                i += 1
 
-                field = dict()
+                field = Bunch()
 
-                name = field['name'] = self.ask_name("model.%s.fieldname.%d" % (model, i),
-                    "Name of field %d" % (i),
+                name = field['name'] = self.ask_name("model.%s.fieldname.%d" % (model, len(models[-1].fields)+1),
+                    "Name of field %d for %s" % (len(models[-1].fields)+1, model),
                     optional = True)
                 if name is None:
                     break
@@ -134,30 +143,29 @@ class DjangoDesignNewProjectWizard(PyMainWizard):
                     UUIDField          
                     """.split("\n") if len(n.strip()) > 0]
 
-                field['type'] = self.ask_select(
+                field.yaml_inline_parms = list()
+                field.yaml_parms = list()
+
+                field.type = self.ask_select(
                     qid('type'),
                     "Model data type for field %s" % (name),
                     options=field_types)
+                field.yaml_inline_parms.append(('type', field.type))
 
                 field['allow_null'] = self.ask_yes_no(
                     qid('allow_null'),
                     "Allow field %s to be null?" % (name),
                     default=True)
-                if field['allow_null']:
-                    field['blank'] = True
-
-                # Note: avoid using null=True on text fields
-                # ref: https://docs.djangoproject.com/en/2.0/ref/models/fields/#null
-                if field['allow_null']:
-                    if field['type'] in ('CharField', 'TextField'):
-                        field['blank'] = True
-                        field['allow_null'] = False
+                if field.allow_null is not None:
+                    field.yaml_inline_parms.append(('allow_null', field.allow_null))
 
                 if field['type'] in ('CharField', ):
                     field['maxlen'] = self.ask_int(
                         qid('maxlen'),
                         "Maximum length of %s" % (name),
                         optional=True)
+                    if field.maxlen is not None:
+                        field.yaml_inline_parms.append(('maxlen', int(field.maxlen)))
 
                 if field['type'] in ('ForeignKey', 'ManyToManyField'):
                     field['foreign_model'] = self.ask_name(
@@ -170,16 +178,36 @@ class DjangoDesignNewProjectWizard(PyMainWizard):
                         options = ('CASCADE', 'PROTECT', 'SET_NULL', 'SET_DEFAULT', 'DO_NOTHING'),
                         optional=True)
 
-                site_data['models'][single_class]['fields'].append(field)
+                models[-1].fields.append(field)
 
 
+        # Format output
         path = os.path.join(self.target, 'site.yml')
         print("Writing " + path)
-        with open(path, 'wb') as fh:
-            yaml.dump(site_data, fh, default_flow_style=False)
+        with open(path, 'wt') as fh:
+            print >>fh, "---"
+            for model in models:
+                print >>fh, "  - names: {sclass: %s, pclass: %s, sname: %s, pname: %s}" % (
+                    model.single_class, model.plural_class, model.single_name, model.plural_name)
+                if len(model.fields) > 0:
+                    print >>fh, " "*4 + 'fields':
+                for fields in model.fields:
+                    fparms = list()
+                    fparms['type']
+                    print >>fh, " "*4 + '%s:' % (field.name)
+
+
+
 
 
 if __name__ == '__main__':
+
+    # Parse arguments
+    try:
+        argv = gflags.FLAGS(sys.argv)
+    except gflags.FlagsError, e:
+        print 'USAGE ERROR: %s\nUsage: %s ARGS\n%s' % (e, sys.argv[0], gflags.FLAGS)
+        sys.exit(1)
 
     wiz = DjangoDesignNewProjectWizard()
     run_wizard(wiz)
