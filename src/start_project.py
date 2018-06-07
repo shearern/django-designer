@@ -190,11 +190,10 @@ class DjangoDesignNewProjectWizard(PyMainWizard):
                 print >>fh, "  - names: {sclass: %s, pclass: %s, sname: %s, pname: %s}" % (
                     model.single_class, model.plural_class, model.single_name, model.plural_name)
                 if len(model.fields) > 0:
-                    print >>fh, " "*4 + 'fields':
+                    print >>fh, " "*4 + 'fields:'
                 for fields in model.fields:
                     fparms = list()
-                    fparms['type']
-                    print >>fh, " "*4 + '%s:' % (field.name)
+                    print >>fh, " "*4 + '%s:' % (field['name'])
 
 
 
